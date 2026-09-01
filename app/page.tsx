@@ -49,7 +49,7 @@ export default function ChaoLuaDashboard() {
   const [playersList, setPlayersList] = useState<Player[]>([]);
   const [playerName, setPlayerName] = useState("");
   const [result, setResult] = useState<"win" | "lose">("win");
-  const [lossCount, setLossCount] = useState<number>(1);
+  const [matchCount, setMatchCount] = useState<number>(1);
   const [records, setRecords] = useState<MatchRecord[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -111,7 +111,9 @@ export default function ChaoLuaDashboard() {
     const newRecord = {
       player_name: playerName,
       result: result,
-      loss_count: result === "lose" ? Number(lossCount) : 0,
+      // Tái sử dụng cột loss_count hiện có để lưu số trận cho cả Thắng và Thua.
+      // Các bản ghi Thắng cũ có giá trị 0 nên phía thống kê vẫn fallback về 1.
+      loss_count: Number(matchCount),
     };
 
     const { data, error } = await supabase
@@ -124,7 +126,7 @@ export default function ChaoLuaDashboard() {
     } else if (data) {
       fetchRecords();
       setResult("win");
-      setLossCount(1);
+      setMatchCount(1);
     }
 
     setIsSubmitting(false);
@@ -148,8 +150,10 @@ export default function ChaoLuaDashboard() {
         };
       }
       if (r.result === "win") {
-        stats[r.player_name].wins += 1;
-        stats[r.player_name].totalMatches += 1;
+        // Bản ghi mới lưu số trận ở loss_count; bản ghi cũ vẫn được tính mặc định là 1 trận thắng.
+        const wins = r.loss_count || 1;
+        stats[r.player_name].wins += wins;
+        stats[r.player_name].totalMatches += wins;
       } else {
         const losses = r.loss_count || 1;
         stats[r.player_name].losses += losses;
@@ -221,7 +225,7 @@ export default function ChaoLuaDashboard() {
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase">Tổng Trận Đã Đánh</p>
               <p className="text-2xl font-black text-slate-800">
-                {records.reduce((acc, r) => acc + (r.result === "win" ? 1 : r.loss_count || 1), 0)} Trận
+                {records.reduce((acc, r) => acc + (r.loss_count || 1), 0)} Trận
               </p>
             </div>
           </div>
@@ -261,91 +265,115 @@ export default function ChaoLuaDashboard() {
                 <h2 className="text-lg font-bold text-slate-900">Báo Cáo Trận Đấu</h2>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Chọn tên người chơi
-                  </label>
-                  <div className="relative">
-                    <UserCheck className="w-5 h-5 text-slate-400 absolute left-3 top-3.5 z-10" />
-                    <select
-                      required
-                      value={playerName}
-                      onChange={(e) => setPlayerName(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition appearance-none cursor-pointer"
-                    >
-                      {playersList.length === 0 ? (
-                        <option value="">Đang tải danh sách...</option>
-                      ) : (
-                        playersList.map((p) => (
-                          <option key={p.id} value={p.name}>
-                            {p.name}
-                          </option>
-                        ))
-                      )}
-                    </select>
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-1 italic">
-                    *Tên được quản lý cố định từ hệ thống.
-                  </p>
-                </div>
+           <form onSubmit={handleSubmit} className="space-y-4">
+  {/* Chọn tên người chơi */}
+  <div>
+    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+      Chọn tên người chơi
+    </label>
+    <div className="relative">
+      <UserCheck className="w-5 h-5 text-slate-400 absolute left-3 top-3.5 z-10" />
+      <select
+        required
+        value={playerName}
+        onChange={(e) => setPlayerName(e.target.value)}
+        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition appearance-none cursor-pointer"
+      >
+        {playersList.length === 0 ? (
+          <option value="">Đang tải danh sách...</option>
+        ) : (
+          playersList.map((p) => (
+            <option key={p.id} value={p.name}>
+              {p.name}
+            </option>
+          ))
+        )}
+      </select>
+    </div>
+    <p className="text-[11px] text-slate-400 mt-1 italic">
+      *Tên được quản lý cố định từ hệ thống.
+    </p>
+  </div>
 
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Kết quả hôm nay
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setResult("win")}
-                      className={`py-2.5 px-4 rounded-xl text-sm font-bold border transition-all flex items-center justify-center space-x-2 ${
-                        result === "win"
-                          ? "bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm"
-                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                      }`}
-                    >
-                      <span>🏆 Thắng</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setResult("lose")}
-                      className={`py-2.5 px-4 rounded-xl text-sm font-bold border transition-all flex items-center justify-center space-x-2 ${
-                        result === "lose"
-                          ? "bg-rose-50 border-rose-500 text-rose-700 shadow-sm"
-                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                      }`}
-                    >
-                      <span>💔 Thua</span>
-                    </button>
-                  </div>
-                </div>
+  {/* Chọn kết quả: Thắng / Thua cân đối */}
+  <div>
+    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+      Kết quả trận đấu
+    </label>
+    <div className="grid grid-cols-2 gap-3">
+      <button
+        type="button"
+        onClick={() => setResult("win")}
+        className={`py-3 px-4 rounded-xl text-sm font-bold border transition-all flex items-center justify-center space-x-2 ${
+          result === "win"
+            ? "bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-200"
+            : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+        }`}
+      >
+        <span>🏆 Thắng</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => setResult("lose")}
+        className={`py-3 px-4 rounded-xl text-sm font-bold border transition-all flex items-center justify-center space-x-2 ${
+          result === "lose"
+            ? "bg-rose-500 border-rose-500 text-white shadow-md shadow-rose-200"
+            : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+        }`}
+      >
+        <span>💔 Thua</span>
+      </button>
+    </div>
+  </div>
 
-                {result === "lose" && (
-                  <div className="p-4 bg-rose-50/50 rounded-xl border border-rose-100">
-                    <label className="block text-xs font-bold uppercase tracking-wider text-rose-700 mb-1.5">
-                      Số trận thua hôm nay
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={10}
-                      required
-                      value={lossCount}
-                      onChange={(e) => setLossCount(parseInt(e.target.value) || 1)}
-                      className="w-full px-4 py-2 bg-white border border-rose-200 rounded-lg text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-rose-500 text-sm"
-                    />
-                  </div>
-                )}
+  {/* Nhập số trận: hiển thị giống nhau cho cả Thắng và Thua */}
+  <div
+    className={`p-4 rounded-xl border space-y-2 animate-fadeIn ${
+      result === "win"
+        ? "bg-emerald-50/60 border-emerald-200"
+        : "bg-rose-50/60 border-rose-200"
+    }`}
+  >
+    <label
+      className={`block text-xs font-bold uppercase tracking-wider ${
+        result === "win" ? "text-emerald-700" : "text-rose-700"
+      }`}
+    >
+      {result === "win" ? "Số trận thắng" : "Số trận thua liên tiếp hôm nay"}
+    </label>
+    <div className="flex items-center space-x-3">
+      <input
+        type="number"
+        min={1}
+        max={10}
+        required
+        value={matchCount}
+        onChange={(e) => setMatchCount(parseInt(e.target.value) || 1)}
+        className={`w-full px-4 py-2.5 bg-white border rounded-xl text-slate-900 font-bold focus:outline-none text-sm shadow-sm ${
+          result === "win"
+            ? "border-emerald-300 focus:ring-2 focus:ring-emerald-500"
+            : "border-rose-300 focus:ring-2 focus:ring-rose-500"
+        }`}
+      />
+      <span
+        className={`text-xs font-bold whitespace-nowrap ${
+          result === "win" ? "text-emerald-600" : "text-rose-600"
+        }`}
+      >
+        trận
+      </span>
+    </div>
+  </div>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-blue-200 transition flex items-center justify-center space-x-2 disabled:opacity-50"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>{isSubmitting ? "Đang gửi..." : "Gửi Kết Quả"}</span>
-                </button>
-              </form>
+  <button
+    type="submit"
+    disabled={isSubmitting}
+    className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-blue-200 transition flex items-center justify-center space-x-2 disabled:opacity-50"
+  >
+    <Send className="w-4 h-4" />
+    <span>{isSubmitting ? "Đang gửi..." : "Gửi Kết Quả"}</span>
+  </button>
+</form>
             </div>
 
             {/* BẢNG XẾP HẠNG % THẮNG THUA */}
@@ -513,7 +541,7 @@ export default function ChaoLuaDashboard() {
                       <th className="py-3 px-4">Thời Gian</th>
                       <th className="py-3 px-4">Người Chơi</th>
                       <th className="py-3 px-4">Kết Quả</th>
-                      <th className="py-3 px-4 text-right">Trận Thua</th>
+                      <th className="py-3 px-4 text-right">Số Trận</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
@@ -549,11 +577,9 @@ export default function ChaoLuaDashboard() {
                             )}
                           </td>
                           <td className="py-3.5 px-4 text-right font-bold text-slate-700">
-                            {rec.result === "lose" ? (
-                              <span className="text-rose-600">-{rec.loss_count}</span>
-                            ) : (
-                              <span className="text-slate-300">0</span>
-                            )}
+                            <span className={rec.result === "win" ? "text-emerald-600" : "text-rose-600"}>
+                              {rec.result === "win" ? "+" : "-"}{rec.loss_count || 1}
+                            </span>
                           </td>
                         </tr>
                       ))
