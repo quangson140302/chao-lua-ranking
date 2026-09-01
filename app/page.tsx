@@ -15,10 +15,14 @@ import {
   Swords,
   Skull,
   CheckCircle2,
+  Filter,
+  TrendingUp,
 } from "lucide-react";
 import {
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -51,6 +55,8 @@ export default function ChaoLuaDashboard() {
   const [isMounted, setIsMounted] = useState(false);
   const [showWelcomeEffect, setShowWelcomeEffect] = useState(true);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [filterPlayer, setFilterPlayer] = useState<string>("all");
+  const [filterResult, setFilterResult] = useState<"all" | "win" | "lose">("all");
 
   useEffect(() => {
     setIsMounted(true);
@@ -73,10 +79,7 @@ export default function ChaoLuaDashboard() {
         console.error("Lỗi lấy danh sách thành viên:", error);
       } else if (data) {
         setPlayersList(data as Player[]);
-        // Mặc định chọn sẵn người đầu tiên nếu có
-        if (data.length > 0 && !playerName) {
-          setPlayerName(data[0].name);
-        }
+        // Không tự động chọn người đầu tiên - để trống cho người dùng tự chọn
       }
     } catch (err) {
       console.error(err);
@@ -178,9 +181,51 @@ export default function ChaoLuaDashboard() {
     );
   };
 
+  // Dữ liệu cộng dồn (tích lũy) cho biểu đồ Phong Độ Gần Đây
+  // Đi từ trận cũ -> mới, mỗi điểm là tổng số thắng/thua tính đến thời điểm đó
+  const getCumulativeFormData = () => {
+    const sorted = [...records].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    let cumWins = 0;
+    let cumLosses = 0;
+
+    const data = sorted.map((r) => {
+      const count = r.result === "win" ? r.wins_count || 1 : r.loss_count || 1;
+      if (r.result === "win") {
+        cumWins += count;
+      } else {
+        cumLosses += count;
+      }
+      return {
+        label: new Date(r.created_at).toLocaleDateString("vi-VN", {
+          day: "2-digit",
+          month: "2-digit",
+        }),
+        "Tổng Thắng": cumWins,
+        "Tổng Thua": cumLosses,
+      };
+    });
+
+    // Chỉ hiển thị 15 điểm gần nhất để biểu đồ không bị rối
+    return data.slice(-15);
+  };
+
+  // Danh sách trận đã lọc theo người chơi / kết quả cho bảng Lịch Sử Nhập
+  const getFilteredRecords = () => {
+    return records.filter((r) => {
+      const matchPlayer = filterPlayer === "all" || r.player_name === filterPlayer;
+      const matchResult = filterResult === "all" || r.result === filterResult;
+      return matchPlayer && matchResult;
+    });
+  };
+
   const leaderboard = getLeaderboardData();
   const topPlayer = leaderboard.length > 0 ? leaderboard[0] : null;
   const mostLossPlayer = [...leaderboard].sort((a, b) => b.losses - a.losses)[0];
+  const cumulativeFormData = getCumulativeFormData();
+  const filteredRecords = getFilteredRecords();
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-pink-50 via-purple-50 to-sky-100 text-slate-800 font-sans pb-12">
@@ -322,11 +367,16 @@ export default function ChaoLuaDashboard() {
         {playersList.length === 0 ? (
           <option value="">Đang tải danh sách...</option>
         ) : (
-          playersList.map((p) => (
-            <option key={p.id} value={p.name}>
-              {p.name}
+          <>
+            <option value="" disabled>
+              -- Chọn người chơi --
             </option>
-          ))
+            {playersList.map((p) => (
+              <option key={p.id} value={p.name}>
+                {p.name}
+              </option>
+            ))}
+          </>
         )}
       </select>
     </div>
@@ -527,68 +577,132 @@ export default function ChaoLuaDashboard() {
               </div>
             </div>
 
-            {/* PHONG ĐỘ GẦN ĐÂY */}
+            {/* PHONG ĐỘ GẦN ĐÂY - dạng cộng dồn */}
             <div className="rounded-2xl border border-white/70 bg-white/95 p-6 shadow-xl shadow-slate-950/10 backdrop-blur transition-all duration-300 hover:shadow-2xl hover:shadow-slate-950/15">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
                 <div className="flex items-center space-x-2">
-                  <Flame className="w-5 h-5 text-orange-500" />
+                  <TrendingUp className="w-5 h-5 text-orange-500" />
                   <h2 className="text-lg font-bold text-slate-900">Phong Độ Gần Đây</h2>
                 </div>
-                <span className="text-xs font-semibold text-slate-400">10 lượt nhập gần nhất</span>
+                <span className="text-xs font-semibold text-slate-400">Cộng dồn 15 lượt gần nhất</span>
               </div>
 
-              {records.length === 0 ? (
-                <div className="h-40 flex items-center justify-center text-slate-400 text-sm">
-                  Chưa có dữ liệu phong độ
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {records.slice(0, 10).map((rec, index) => {
-                    const count = rec.result === "win" ? rec.wins_count || 1 : rec.loss_count || 1;
-                    return (
-                      <div
-                        key={rec.id || `${rec.created_at}-${index}`}
-                        className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black shrink-0 ${
-                            rec.result === "win"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-rose-100 text-rose-700"
-                          }`}>
-                            {rec.result === "win" ? "W" : "L"}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-bold text-slate-800 text-sm truncate">{rec.player_name}</p>
-                            <p className="text-[11px] text-slate-400">
-                              {new Date(rec.created_at).toLocaleString("vi-VN", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                day: "2-digit",
-                                month: "2-digit",
-                              })}
-                            </p>
-                          </div>
-                        </div>
-                        <div className={`text-xs font-black px-3 py-1.5 rounded-lg ${
-                          rec.result === "win"
-                            ? "bg-emerald-500 text-white"
-                            : "bg-rose-500 text-white"
-                        }`}>
-                          {rec.result === "win" ? `+${count} W` : `-${count} L`}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <div className="h-64 w-full">
+                {isMounted && cumulativeFormData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={cumulativeFormData}
+                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis
+                        dataKey="label"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "#94a3b8", fontSize: 12 }}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "#94a3b8", fontSize: 12 }}
+                        allowDecimals={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#ffffff",
+                          borderRadius: "12px",
+                          border: "1px solid #e2e8f0",
+                        }}
+                      />
+                      <Legend wrapperStyle={{ paddingTop: "10px" }} />
+                      <Line
+                        type="monotone"
+                        dataKey="Tổng Thắng"
+                        stroke="#10b981"
+                        strokeWidth={3}
+                        dot={{ r: 3, fill: "#10b981" }}
+                        activeDot={{ r: 5 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="Tổng Thua"
+                        stroke="#f43f5e"
+                        strokeWidth={3}
+                        dot={{ r: 3, fill: "#f43f5e" }}
+                        activeDot={{ r: 5 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">
+                    {isMounted ? "Chưa có dữ liệu phong độ" : "Đang tải biểu đồ..."}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* LỊCH SỬ NHẬP */}
             <div className="rounded-2xl border border-white/70 bg-white/95 p-6 shadow-xl shadow-slate-950/10 backdrop-blur transition-all duration-300 hover:shadow-2xl hover:shadow-slate-950/15">
-              <div className="flex items-center space-x-2 border-b border-slate-100 pb-4 mb-4">
-                <History className="w-5 h-5 text-indigo-600" />
-                <h2 className="text-lg font-bold text-slate-900">Lịch Sử Nhập Gần Đây</h2>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4 flex-wrap gap-3">
+                <div className="flex items-center space-x-2">
+                  <History className="w-5 h-5 text-indigo-600" />
+                  <h2 className="text-lg font-bold text-slate-900">Lịch Sử Nhập Gần Đây</h2>
+                </div>
+                <span className="text-xs font-semibold text-slate-400">
+                  {filteredRecords.length}/{records.length} trận
+                </span>
+              </div>
+
+              {/* Bộ lọc */}
+              <div className="mb-5 flex flex-wrap items-center gap-2.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <Filter className="w-3.5 h-3.5" />
+                  <span>Lọc</span>
+                </div>
+                <select
+                  value={filterPlayer}
+                  onChange={(e) => setFilterPlayer(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="all">Tất cả người chơi</option>
+                  {playersList.map((p) => (
+                    <option key={p.id} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                  {(["all", "win", "lose"] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setFilterResult(opt)}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                        filterResult === opt
+                          ? opt === "win"
+                            ? "bg-emerald-500 text-white shadow-sm"
+                            : opt === "lose"
+                            ? "bg-rose-500 text-white shadow-sm"
+                            : "bg-indigo-600 text-white shadow-sm"
+                          : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      {opt === "all" ? "Tất cả" : opt === "win" ? "Thắng" : "Thua"}
+                    </button>
+                  ))}
+                </div>
+                {(filterPlayer !== "all" || filterResult !== "all") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterPlayer("all");
+                      setFilterResult("all");
+                    }}
+                    className="text-xs font-semibold text-indigo-500 hover:text-indigo-700 underline underline-offset-2"
+                  >
+                    Xóa lọc
+                  </button>
+                )}
               </div>
 
               <div className="overflow-x-auto">
@@ -602,14 +716,16 @@ export default function ChaoLuaDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
-                    {records.length === 0 ? (
+                    {filteredRecords.length === 0 ? (
                       <tr>
                         <td colSpan={4} className="py-6 text-center text-slate-400">
-                          Chưa có nhật ký nào được ghi nhận.
+                          {records.length === 0
+                            ? "Chưa có nhật ký nào được ghi nhận."
+                            : "Không có trận nào khớp với bộ lọc."}
                         </td>
                       </tr>
                     ) : (
-                      records.slice(0, 10).map((rec, i) => (
+                      filteredRecords.slice(0, 15).map((rec, i) => (
                         <tr key={rec.id || i} className="hover:bg-slate-50/80 transition">
                           <td className="py-3.5 px-4 text-xs text-slate-400">
                             {new Date(rec.created_at).toLocaleString("vi-VN", {
