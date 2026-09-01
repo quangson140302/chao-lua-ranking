@@ -38,9 +38,15 @@ interface MatchRecord {
   created_at: string;
 }
 
+interface Player {
+  id: string;
+  name: string;
+}
+
 const COLORS = ["#10b981", "#f43f5e", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899"];
 
 export default function ChaoLuaDashboard() {
+  const [playersList, setPlayersList] = useState<Player[]>([]);
   const [playerName, setPlayerName] = useState("");
   const [result, setResult] = useState<"win" | "lose">("win");
   const [lossCount, setLossCount] = useState<number>(1);
@@ -50,8 +56,31 @@ export default function ChaoLuaDashboard() {
 
   useEffect(() => {
     setIsMounted(true);
+    fetchPlayers();
     fetchRecords();
   }, []);
+
+  // Lấy danh sách thành viên cố định từ bảng players
+  const fetchPlayers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("players")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) {
+        console.error("Lỗi lấy danh sách thành viên:", error);
+      } else if (data) {
+        setPlayersList(data as Player[]);
+        // Mặc định chọn sẵn người đầu tiên nếu có
+        if (data.length > 0 && !playerName) {
+          setPlayerName(data[0].name);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchRecords = async () => {
     try {
@@ -61,7 +90,7 @@ export default function ChaoLuaDashboard() {
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Lỗi lấy dữ liệu:", error);
+        console.error("Lỗi lấy dữ liệu trận đấu:", error);
       } else if (data) {
         setRecords(data as MatchRecord[]);
       }
@@ -72,15 +101,15 @@ export default function ChaoLuaDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!playerName.trim()) return;
+    if (!playerName) {
+      alert("Vui lòng chọn tên người chơi!");
+      return;
+    }
 
     setIsSubmitting(true);
-    const formattedName =
-      playerName.trim().charAt(0).toUpperCase() +
-      playerName.trim().slice(1).toLowerCase();
 
     const newRecord = {
-      player_name: formattedName,
+      player_name: playerName,
       result: result,
       loss_count: result === "lose" ? Number(lossCount) : 0,
     };
@@ -94,7 +123,6 @@ export default function ChaoLuaDashboard() {
       alert(`Lỗi lưu dữ liệu: ${error.message}`);
     } else if (data) {
       fetchRecords();
-      setPlayerName("");
       setResult("win");
       setLossCount(1);
     }
@@ -129,7 +157,6 @@ export default function ChaoLuaDashboard() {
       }
     });
 
-    // Tính % Thắng
     Object.values(stats).forEach((player) => {
       player.winRate =
         player.totalMatches > 0
@@ -140,14 +167,12 @@ export default function ChaoLuaDashboard() {
     return Object.values(stats);
   };
 
-  // Sắp xếp Bảng xếp hạng theo % Thắng (nếu bằng % thì so sánh số trận thắng)
   const getLeaderboardData = () => {
     return getPlayerStats().sort(
       (a, b) => b.winRate - a.winRate || b.wins - a.wins
     );
   };
 
-  // Lấy dữ liệu cho Biểu đồ Tròn (% Đóng góp Thắng)
   const getPieChartData = () => {
     return getPlayerStats()
       .filter((p) => p.wins > 0)
@@ -157,7 +182,6 @@ export default function ChaoLuaDashboard() {
       }));
   };
 
-  // Thống kê nhanh ở Top Cards
   const leaderboard = getLeaderboardData();
   const topPlayer = leaderboard.length > 0 ? leaderboard[0] : null;
   const mostLossPlayer = [...leaderboard].sort((a, b) => b.losses - a.losses)[0];
@@ -230,7 +254,7 @@ export default function ChaoLuaDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* CỘT TRÁI: FORM NHẬP KẾT QUẢ & BẢNG XẾP HẠNG (5 Cột) */}
           <div className="lg:col-span-5 space-y-6">
-            {/* Form Nhập */}
+            {/* Form Nhập dạng Select */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
               <div className="flex items-center space-x-2 border-b border-slate-100 pb-4 mb-5">
                 <PlusCircle className="w-5 h-5 text-blue-600" />
@@ -240,19 +264,30 @@ export default function ChaoLuaDashboard() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Tên của bạn
+                    Chọn tên người chơi
                   </label>
                   <div className="relative">
-                    <UserCheck className="w-5 h-5 text-slate-400 absolute left-3 top-3" />
-                    <input
-                      type="text"
+                    <UserCheck className="w-5 h-5 text-slate-400 absolute left-3 top-3.5 z-10" />
+                    <select
                       required
-                      placeholder="VD: Quang, Đông, Khang..."
                       value={playerName}
                       onChange={(e) => setPlayerName(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition"
-                    />
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition appearance-none cursor-pointer"
+                    >
+                      {playersList.length === 0 ? (
+                        <option value="">Đang tải danh sách...</option>
+                      ) : (
+                        playersList.map((p) => (
+                          <option key={p.id} value={p.name}>
+                            {p.name}
+                          </option>
+                        ))
+                      )}
+                    </select>
                   </div>
+                  <p className="text-[11px] text-slate-400 mt-1 italic">
+                    *Tên được quản lý cố định từ hệ thống.
+                  </p>
                 </div>
 
                 <div>
@@ -353,7 +388,6 @@ export default function ChaoLuaDashboard() {
                         </div>
                       </div>
 
-                      {/* Thanh phần trăm winrate */}
                       <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                         <div
                           className="bg-emerald-500 h-full rounded-full transition-all duration-500"
