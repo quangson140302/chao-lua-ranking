@@ -183,20 +183,20 @@ export default function ChaoLuaDashboard() {
   const mostLossPlayer = [...leaderboard].sort((a, b) => b.losses - a.losses)[0];
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-800 font-sans pb-12">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-pink-50 via-purple-50 to-sky-100 text-slate-800 font-sans pb-12">
       {/* Ambient background */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-32 top-40 h-96 w-96 rounded-full bg-orange-500/10 blur-3xl" />
-        <div className="absolute -right-32 top-72 h-96 w-96 rounded-full bg-indigo-500/15 blur-3xl" />
-        <div className="absolute left-1/2 top-0 h-80 w-80 -translate-x-1/2 rounded-full bg-amber-400/10 blur-3xl" />
+        <div className="absolute -left-32 top-40 h-96 w-96 rounded-full bg-orange-300/25 blur-3xl" />
+        <div className="absolute -right-32 top-72 h-96 w-96 rounded-full bg-indigo-300/25 blur-3xl" />
+        <div className="absolute left-1/2 top-0 h-80 w-80 -translate-x-1/2 rounded-full bg-amber-300/20 blur-3xl" />
       </div>
 
-      {/* Welcome falling-star effect */}
+      {/* Welcome banner effect - centered on screen for readability */}
       {showWelcomeEffect && (
-        <div className="pointer-events-none fixed inset-0 z-[60] overflow-hidden">
-          <div className="absolute left-1/2 top-20 -translate-x-1/2 text-center animate-welcomeFade">
-            <div className="mb-2 text-4xl">🔥</div>
-            <p className="text-xs font-black uppercase tracking-[0.35em] text-amber-200 drop-shadow-lg">
+        <div className="pointer-events-none fixed inset-0 z-[60] flex items-center justify-center overflow-hidden">
+          <div className="animate-welcomeFade rounded-3xl border border-amber-200 bg-white/95 px-10 py-8 text-center shadow-2xl shadow-amber-500/20 backdrop-blur-xl">
+            <div className="mb-2 text-5xl">🔥</div>
+            <p className="text-sm font-black uppercase tracking-[0.35em] text-amber-600 sm:text-base">
               Chào mừng đến Chảo Lửa
             </p>
           </div>
@@ -233,22 +233,22 @@ export default function ChaoLuaDashboard() {
       )}
 
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-slate-200 bg-slate-950/80 shadow-2xl shadow-slate-950/20 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-white/60 bg-white/80 shadow-lg shadow-slate-900/5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center space-x-3">
             <div className="rounded-xl bg-gradient-to-br from-orange-400 via-amber-500 to-red-500 p-2.5 text-white shadow-lg shadow-orange-500/30">
               <Flame className="w-6 h-6 animate-pulse" />
             </div>
             <div>
-              <h1 className="text-xl font-black tracking-tight text-white sm:text-2xl">
+              <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
                 Chảo Lửa Hàng Tuần
               </h1>
-              <p className="text-xs font-medium text-slate-400 sm:text-sm">
+              <p className="text-xs font-medium text-slate-500 sm:text-sm">
                 Xếp Hạng & Biểu Đồ % Thắng Custom LMHT
               </p>
             </div>
           </div>
-          <div className="hidden items-center space-x-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200 sm:flex">
+          <div className="hidden items-center space-x-2 rounded-full border border-amber-300/40 bg-amber-100/70 px-3 py-1.5 text-xs font-semibold text-amber-700 sm:flex">
             <Trophy className="w-4 h-4 text-amber-500" />
             <span>Mùa Giải 2026</span>
           </div>
@@ -671,9 +671,9 @@ export default function ChaoLuaDashboard() {
         }
 
         @keyframes welcomeFade {
-          0%, 70% { opacity: 0; transform: translate(-50%, -8px) scale(0.96); }
-          15%, 55% { opacity: 1; transform: translate(-50%, 0) scale(1); }
-          100% { opacity: 0; transform: translate(-50%, -5px) scale(1.02); }
+          0%, 70% { opacity: 0; transform: translateY(-8px) scale(0.96); }
+          15%, 55% { opacity: 1; transform: translateY(0) scale(1); }
+          100% { opacity: 0; transform: translateY(-5px) scale(1.02); }
         }
 
         @keyframes toastIn {
