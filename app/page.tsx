@@ -14,6 +14,7 @@ import {
   Percent,
   Swords,
   Skull,
+  CheckCircle2,
 } from "lucide-react";
 import {
   BarChart,
@@ -48,11 +49,16 @@ export default function ChaoLuaDashboard() {
   const [records, setRecords] = useState<MatchRecord[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [showWelcomeEffect, setShowWelcomeEffect] = useState(true);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
     fetchPlayers();
     fetchRecords();
+
+    const timer = setTimeout(() => setShowWelcomeEffect(false), 4200);
+    return () => clearTimeout(timer);
   }, []);
 
   // Lấy danh sách thành viên cố định từ bảng players
@@ -121,6 +127,8 @@ export default function ChaoLuaDashboard() {
       fetchRecords();
       setResult("win");
       setMatchCount(1);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3600);
     }
 
     setIsSubmitting(false);
@@ -175,35 +183,83 @@ export default function ChaoLuaDashboard() {
   const mostLossPlayer = [...leaderboard].sort((a, b) => b.losses - a.losses)[0];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-12">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-800 font-sans pb-12">
+      {/* Ambient background */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-32 top-40 h-96 w-96 rounded-full bg-orange-500/10 blur-3xl" />
+        <div className="absolute -right-32 top-72 h-96 w-96 rounded-full bg-indigo-500/15 blur-3xl" />
+        <div className="absolute left-1/2 top-0 h-80 w-80 -translate-x-1/2 rounded-full bg-amber-400/10 blur-3xl" />
+      </div>
+
+      {/* Welcome falling-star effect */}
+      {showWelcomeEffect && (
+        <div className="pointer-events-none fixed inset-0 z-[60] overflow-hidden">
+          <div className="absolute left-1/2 top-20 -translate-x-1/2 text-center animate-welcomeFade">
+            <div className="mb-2 text-4xl">🔥</div>
+            <p className="text-xs font-black uppercase tracking-[0.35em] text-amber-200 drop-shadow-lg">
+              Chào mừng đến Chảo Lửa
+            </p>
+          </div>
+          {Array.from({ length: 28 }, (_, i) => (
+            <span
+              key={i}
+              className="falling-star"
+              style={{
+                left: `${(i * 37) % 101}%`,
+                animationDelay: `${(i * 0.13) % 2.6}s`,
+                animationDuration: `${2.4 + ((i * 17) % 18) / 10}s`,
+                transform: `rotate(${35 + ((i * 23) % 70)}deg)`,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Success toast */}
+      {showSuccess && (
+        <div className="fixed right-4 top-20 z-[70] w-[calc(100%-2rem)] max-w-sm animate-toastIn">
+          <div className="flex items-start gap-3 rounded-2xl border border-emerald-200/60 bg-white/95 p-4 shadow-2xl shadow-emerald-950/20 backdrop-blur-xl">
+            <div className="rounded-full bg-emerald-100 p-2 text-emerald-600">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-black text-slate-900">Đã ghi nhận kết quả! 🎉</p>
+              <p className="mt-0.5 text-xs font-medium text-slate-500">
+                Dữ liệu đã được lưu và bảng xếp hạng đang cập nhật.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/80 shadow-2xl shadow-slate-950/20 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center space-x-3">
-            <div className="bg-orange-500 p-2.5 rounded-xl text-white shadow-md shadow-orange-200">
+            <div className="rounded-xl bg-gradient-to-br from-orange-400 via-amber-500 to-red-500 p-2.5 text-white shadow-lg shadow-orange-500/30">
               <Flame className="w-6 h-6 animate-pulse" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              <h1 className="text-xl font-black tracking-tight text-white sm:text-2xl">
                 Chảo Lửa Hàng Tuần
               </h1>
-              <p className="text-xs sm:text-sm text-slate-500 font-medium">
+              <p className="text-xs font-medium text-slate-400 sm:text-sm">
                 Xếp Hạng & Biểu Đồ % Thắng Custom LMHT
               </p>
             </div>
           </div>
-          <div className="hidden sm:flex items-center space-x-2 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full text-amber-700 text-xs font-semibold">
+          <div className="hidden items-center space-x-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200 sm:flex">
             <Trophy className="w-4 h-4 text-amber-500" />
             <span>Mùa Giải 2026</span>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+      <main className="relative z-10 mx-auto max-w-7xl space-y-8 px-4 pt-8 sm:px-6 lg:px-8">
         {/* 3 THẺ THỐNG KÊ NHANH (CARDS) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+          <div className="group rounded-2xl border border-white/70 bg-white/95 p-5 shadow-xl shadow-slate-950/10 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-950/20 flex items-center space-x-4">
+            <div className="rounded-xl bg-indigo-50 p-3 text-indigo-600">
               <Swords className="w-6 h-6" />
             </div>
             <div>
@@ -214,8 +270,8 @@ export default function ChaoLuaDashboard() {
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+          <div className="group rounded-2xl border border-white/70 bg-white/95 p-5 shadow-xl shadow-slate-950/10 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-950/20 flex items-center space-x-4">
+            <div className="rounded-xl bg-emerald-50 p-3 text-emerald-600">
               <Trophy className="w-6 h-6" />
             </div>
             <div>
@@ -226,8 +282,8 @@ export default function ChaoLuaDashboard() {
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4">
-            <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
+          <div className="group rounded-2xl border border-white/70 bg-white/95 p-5 shadow-xl shadow-slate-950/10 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-950/20 flex items-center space-x-4">
+            <div className="rounded-xl bg-rose-50 p-3 text-rose-600">
               <Skull className="w-6 h-6" />
             </div>
             <div>
@@ -243,9 +299,9 @@ export default function ChaoLuaDashboard() {
           {/* CỘT TRÁI: FORM NHẬP KẾT QUẢ & BẢNG XẾP HẠNG (5 Cột) */}
           <div className="lg:col-span-5 space-y-6">
             {/* Form Nhập dạng Select */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div className="rounded-2xl border border-white/70 bg-white/95 p-6 shadow-xl shadow-slate-950/10 backdrop-blur transition-all duration-300 hover:shadow-2xl hover:shadow-slate-950/15">
               <div className="flex items-center space-x-2 border-b border-slate-100 pb-4 mb-5">
-                <PlusCircle className="w-5 h-5 text-blue-600" />
+                <PlusCircle className="w-5 h-5 text-indigo-600" />
                 <h2 className="text-lg font-bold text-slate-900">Báo Cáo Trận Đấu</h2>
               </div>
 
@@ -261,7 +317,7 @@ export default function ChaoLuaDashboard() {
         required
         value={playerName}
         onChange={(e) => setPlayerName(e.target.value)}
-        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition appearance-none cursor-pointer"
+        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm transition appearance-none cursor-pointer"
       >
         {playersList.length === 0 ? (
           <option value="">Đang tải danh sách...</option>
@@ -350,7 +406,7 @@ export default function ChaoLuaDashboard() {
   <button
     type="submit"
     disabled={isSubmitting}
-    className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-blue-200 transition flex items-center justify-center space-x-2 disabled:opacity-50"
+    className="w-full mt-2 bg-gradient-to-r from-indigo-600 via-violet-600 to-blue-600 hover:from-indigo-500 hover:via-violet-500 hover:to-blue-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-indigo-500/25 transition-all duration-300 hover:-translate-y-0.5 flex items-center justify-center space-x-2 disabled:opacity-50"
   >
     <Send className="w-4 h-4" />
     <span>{isSubmitting ? "Đang gửi..." : "Gửi Kết Quả"}</span>
@@ -359,7 +415,7 @@ export default function ChaoLuaDashboard() {
             </div>
 
             {/* BẢNG XẾP HẠNG % THẮNG THUA */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div className="rounded-2xl border border-white/70 bg-white/95 p-6 shadow-xl shadow-slate-950/10 backdrop-blur transition-all duration-300 hover:shadow-2xl hover:shadow-slate-950/15">
               <div className="flex items-center space-x-2 border-b border-slate-100 pb-4 mb-4">
                 <Award className="w-5 h-5 text-amber-500" />
                 <h2 className="text-lg font-bold text-slate-900">Bảng Xếp Hạng % Thắng</h2>
@@ -392,7 +448,7 @@ export default function ChaoLuaDashboard() {
                             {player.name}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-1 font-black text-sm text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">
+                        <div className="flex items-center space-x-1 font-black text-sm text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
                           <Percent className="w-3.5 h-3.5" />
                           <span>{player.winRate}%</span>
                         </div>
@@ -423,9 +479,9 @@ export default function ChaoLuaDashboard() {
           <div className="lg:col-span-7 space-y-6">
             
             {/* BIỂU ĐỒ CỘT THẮNG / THUA */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div className="rounded-2xl border border-white/70 bg-white/95 p-6 shadow-xl shadow-slate-950/10 backdrop-blur transition-all duration-300 hover:shadow-2xl hover:shadow-slate-950/15">
               <div className="flex items-center space-x-2 border-b border-slate-100 pb-4 mb-6">
-                <BarChart3 className="w-5 h-5 text-blue-600" />
+                <BarChart3 className="w-5 h-5 text-indigo-600" />
                 <h2 className="text-lg font-bold text-slate-900">
                   Biểu Đồ Thắng vs Thua
                 </h2>
@@ -472,7 +528,7 @@ export default function ChaoLuaDashboard() {
             </div>
 
             {/* PHONG ĐỘ GẦN ĐÂY */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div className="rounded-2xl border border-white/70 bg-white/95 p-6 shadow-xl shadow-slate-950/10 backdrop-blur transition-all duration-300 hover:shadow-2xl hover:shadow-slate-950/15">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-5">
                 <div className="flex items-center space-x-2">
                   <Flame className="w-5 h-5 text-orange-500" />
@@ -529,9 +585,9 @@ export default function ChaoLuaDashboard() {
             </div>
 
             {/* LỊCH SỬ NHẬP */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div className="rounded-2xl border border-white/70 bg-white/95 p-6 shadow-xl shadow-slate-950/10 backdrop-blur transition-all duration-300 hover:shadow-2xl hover:shadow-slate-950/15">
               <div className="flex items-center space-x-2 border-b border-slate-100 pb-4 mb-4">
-                <History className="w-5 h-5 text-blue-600" />
+                <History className="w-5 h-5 text-indigo-600" />
                 <h2 className="text-lg font-bold text-slate-900">Lịch Sử Nhập Gần Đây</h2>
               </div>
 
@@ -595,6 +651,68 @@ export default function ChaoLuaDashboard() {
           </div>
         </div>
       </main>
+
+      <style jsx global>{`
+        @keyframes fallingStar {
+          0% {
+            opacity: 0;
+            transform: translate3d(0, -15vh, 0) rotate(45deg) scale(0.35);
+          }
+          12% {
+            opacity: 1;
+          }
+          70% {
+            opacity: 0.9;
+          }
+          100% {
+            opacity: 0;
+            transform: translate3d(-18vw, 115vh, 0) rotate(45deg) scale(1);
+          }
+        }
+
+        @keyframes welcomeFade {
+          0%, 70% { opacity: 0; transform: translate(-50%, -8px) scale(0.96); }
+          15%, 55% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+          100% { opacity: 0; transform: translate(-50%, -5px) scale(1.02); }
+        }
+
+        @keyframes toastIn {
+          0% { opacity: 0; transform: translate3d(30px, -10px, 0) scale(0.96); }
+          100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+        }
+
+        .falling-star {
+          position: absolute;
+          top: -40px;
+          width: 3px;
+          height: 3px;
+          border-radius: 999px;
+          background: #fef3c7;
+          box-shadow: 0 0 8px 2px rgba(251, 191, 36, 0.9);
+          animation-name: fallingStar;
+          animation-timing-function: linear;
+          animation-iteration-count: 1;
+        }
+
+        .falling-star::after {
+          content: "";
+          position: absolute;
+          right: 2px;
+          top: 1px;
+          width: 55px;
+          height: 2px;
+          border-radius: 999px;
+          background: linear-gradient(90deg, rgba(251, 191, 36, 0.7), transparent);
+        }
+
+        .animate-welcomeFade {
+          animation: welcomeFade 4.1s ease-out forwards;
+        }
+
+        .animate-toastIn {
+          animation: toastIn 0.35s cubic-bezier(.2,.8,.2,1) forwards;
+        }
+      `}</style>
     </div>
   );
 }
