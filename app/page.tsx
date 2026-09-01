@@ -11,7 +11,6 @@ import {
   Send,
   PlusCircle,
   Award,
-  PieChart as PieChartIcon,
   Percent,
   Swords,
   Skull,
@@ -25,15 +24,13 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
 } from "recharts";
 
 interface MatchRecord {
   id?: string;
   player_name: string;
   result: "win" | "lose";
+  wins_count: number;
   loss_count: number;
   created_at: string;
 }
@@ -42,8 +39,6 @@ interface Player {
   id: string;
   name: string;
 }
-
-const COLORS = ["#10b981", "#f43f5e", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899"];
 
 export default function ChaoLuaDashboard() {
   const [playersList, setPlayersList] = useState<Player[]>([]);
@@ -110,10 +105,9 @@ export default function ChaoLuaDashboard() {
 
     const newRecord = {
       player_name: playerName,
-      result: result,
-      // Tái sử dụng cột loss_count hiện có để lưu số trận cho cả Thắng và Thua.
-      // Các bản ghi Thắng cũ có giá trị 0 nên phía thống kê vẫn fallback về 1.
-      loss_count: Number(matchCount),
+      result,
+      wins_count: result === "win" ? Number(matchCount) : 0,
+      loss_count: result === "lose" ? Number(matchCount) : 0,
     };
 
     const { data, error } = await supabase
@@ -150,8 +144,7 @@ export default function ChaoLuaDashboard() {
         };
       }
       if (r.result === "win") {
-        // Bản ghi mới lưu số trận ở loss_count; bản ghi cũ vẫn được tính mặc định là 1 trận thắng.
-        const wins = r.loss_count || 1;
+        const wins = r.wins_count || 1;
         stats[r.player_name].wins += wins;
         stats[r.player_name].totalMatches += wins;
       } else {
@@ -175,15 +168,6 @@ export default function ChaoLuaDashboard() {
     return getPlayerStats().sort(
       (a, b) => b.winRate - a.winRate || b.wins - a.wins
     );
-  };
-
-  const getPieChartData = () => {
-    return getPlayerStats()
-      .filter((p) => p.wins > 0)
-      .map((p) => ({
-        name: p.name,
-        value: p.wins,
-      }));
   };
 
   const leaderboard = getLeaderboardData();
@@ -225,7 +209,7 @@ export default function ChaoLuaDashboard() {
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase">Tổng Trận Đã Đánh</p>
               <p className="text-2xl font-black text-slate-800">
-                {records.reduce((acc, r) => acc + (r.loss_count || 1), 0)} Trận
+                {records.reduce((acc, r) => acc + (r.result === "win" ? r.wins_count || 1 : r.loss_count || 1), 0)} Trận
               </p>
             </div>
           </div>
@@ -326,12 +310,10 @@ export default function ChaoLuaDashboard() {
     </div>
   </div>
 
-  {/* Nhập số trận: hiển thị giống nhau cho cả Thắng và Thua */}
+  {/* Nhập số trận: Thắng / Thua dùng chung một giao diện */}
   <div
     className={`p-4 rounded-xl border space-y-2 animate-fadeIn ${
-      result === "win"
-        ? "bg-emerald-50/60 border-emerald-200"
-        : "bg-rose-50/60 border-rose-200"
+      result === "win" ? "bg-emerald-50/60 border-emerald-200" : "bg-rose-50/60 border-rose-200"
     }`}
   >
     <label
@@ -348,11 +330,11 @@ export default function ChaoLuaDashboard() {
         max={10}
         required
         value={matchCount}
-        onChange={(e) => setMatchCount(parseInt(e.target.value) || 1)}
-        className={`w-full px-4 py-2.5 bg-white border rounded-xl text-slate-900 font-bold focus:outline-none text-sm shadow-sm ${
+        onChange={(e) => setMatchCount(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+        className={`w-full px-4 py-2.5 bg-white rounded-xl text-slate-900 font-bold text-sm shadow-sm focus:outline-none focus:ring-2 ${
           result === "win"
-            ? "border-emerald-300 focus:ring-2 focus:ring-emerald-500"
-            : "border-rose-300 focus:ring-2 focus:ring-rose-500"
+            ? "border border-emerald-300 focus:ring-emerald-500"
+            : "border border-rose-300 focus:ring-rose-500"
         }`}
       />
       <span
@@ -489,42 +471,61 @@ export default function ChaoLuaDashboard() {
               </div>
             </div>
 
-            {/* BIỂU ĐỒ TRÒN (% THẮNG CỦA CẢ NHÓM) */}
+            {/* PHONG ĐỘ GẦN ĐÂY */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-              <div className="flex items-center space-x-2 border-b border-slate-100 pb-4 mb-6">
-                <PieChartIcon className="w-5 h-5 text-blue-600" />
-                <h2 className="text-lg font-bold text-slate-900">
-                  Tỷ Lệ Đóng Góp Trận Thắng Nhóm
-                </h2>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-5">
+                <div className="flex items-center space-x-2">
+                  <Flame className="w-5 h-5 text-orange-500" />
+                  <h2 className="text-lg font-bold text-slate-900">Phong Độ Gần Đây</h2>
+                </div>
+                <span className="text-xs font-semibold text-slate-400">10 lượt nhập gần nhất</span>
               </div>
 
-              <div className="h-64 w-full">
-                {isMounted && getPieChartData().length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={getPieChartData()}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={85}
-                        paddingAngle={5}
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`}
+              {records.length === 0 ? (
+                <div className="h-40 flex items-center justify-center text-slate-400 text-sm">
+                  Chưa có dữ liệu phong độ
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {records.slice(0, 10).map((rec, index) => {
+                    const count = rec.result === "win" ? rec.wins_count || 1 : rec.loss_count || 1;
+                    return (
+                      <div
+                        key={rec.id || `${rec.created_at}-${index}`}
+                        className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100"
                       >
-                        {getPieChartData().map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">
-                    {isMounted ? "Chưa có trận thắng nào" : "Đang tải..."}
-                  </div>
-                )}
-              </div>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black shrink-0 ${
+                            rec.result === "win"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-rose-100 text-rose-700"
+                          }`}>
+                            {rec.result === "win" ? "W" : "L"}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-800 text-sm truncate">{rec.player_name}</p>
+                            <p className="text-[11px] text-slate-400">
+                              {new Date(rec.created_at).toLocaleString("vi-VN", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                day: "2-digit",
+                                month: "2-digit",
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className={`text-xs font-black px-3 py-1.5 rounded-lg ${
+                          rec.result === "win"
+                            ? "bg-emerald-500 text-white"
+                            : "bg-rose-500 text-white"
+                        }`}>
+                          {rec.result === "win" ? `+${count} W` : `-${count} L`}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* LỊCH SỬ NHẬP */}
@@ -577,9 +578,11 @@ export default function ChaoLuaDashboard() {
                             )}
                           </td>
                           <td className="py-3.5 px-4 text-right font-bold text-slate-700">
-                            <span className={rec.result === "win" ? "text-emerald-600" : "text-rose-600"}>
-                              {rec.result === "win" ? "+" : "-"}{rec.loss_count || 1}
-                            </span>
+                            {rec.result === "win" ? (
+                              <span className="text-emerald-600">+{rec.wins_count || 1}</span>
+                            ) : (
+                              <span className="text-rose-600">-{rec.loss_count || 1}</span>
+                            )}
                           </td>
                         </tr>
                       ))
