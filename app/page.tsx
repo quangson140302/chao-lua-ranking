@@ -233,7 +233,7 @@ export default function ChaoLuaDashboard() {
       )}
 
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/80 shadow-2xl shadow-slate-950/20 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-slate-950/80 shadow-2xl shadow-slate-950/20 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center space-x-3">
             <div className="rounded-xl bg-gradient-to-br from-orange-400 via-amber-500 to-red-500 p-2.5 text-white shadow-lg shadow-orange-500/30">
