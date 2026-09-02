@@ -27,6 +27,8 @@ import {
   UserPlus,
   Calendar,
   X,
+  Reply,
+  CornerDownRight,
 } from "lucide-react";
 import {
   BarChart,
@@ -76,6 +78,8 @@ interface Comment {
   content: string;
   avatar_seed: string;
   created_at: string;
+  parent_id?: string | null;
+  replies?: Comment[];
 }
 
 const getRankInfo = (lp: number) => {
@@ -111,9 +115,10 @@ export default function ChaoLuaDashboard() {
   // State Khung Thời Gian BXH (All / Today / Week)
   const [timeFrame, setTimeFrame] = useState<"all" | "today" | "week">("all");
 
-  // State cho Bình luận ẩn danh
+  // State cho Bình luận ẩn danh & Reply
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentContent, setCommentContent] = useState("");
+  const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
   const [isPostingComment, setIsPostingComment] = useState(false);
 
   // Phân trang BXH
@@ -159,17 +164,35 @@ export default function ChaoLuaDashboard() {
       const { data, error } = await supabase
         .from("anonymous_comments")
         .select("*")
-        .order("created_at", { ascending: false })
-        .limit(20);
+        .order("created_at", { ascending: true });
 
-      if (error) console.error(error);
-      else if (data) setComments(data as Comment[]);
+      if (error) {
+        console.error(error);
+      } else if (data) {
+        const rawComments = data as Comment[];
+        const map: Record<string, Comment> = {};
+        const roots: Comment[] = [];
+
+        rawComments.forEach((c) => {
+          map[c.id] = { ...c, replies: [] };
+        });
+
+        rawComments.forEach((c) => {
+          if (c.parent_id && map[c.parent_id]) {
+            map[c.parent_id].replies?.push(map[c.id]);
+          } else {
+            roots.push(map[c.id]);
+          }
+        });
+
+        roots.reverse();
+        setComments(roots);
+      }
     } catch (err) {
       console.error(err);
     }
   };
 
-  // Thêm người chơi mới
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPlayerInput.trim()) return;
@@ -186,7 +209,6 @@ export default function ChaoLuaDashboard() {
     setIsAddingPlayer(false);
   };
 
-  // Xóa người chơi
   const handleDeletePlayer = async (id: string, name: string) => {
     if (!confirm(`Bạn có chắc chắn muốn xóa người chơi "${name}" khỏi hệ thống?`)) return;
 
@@ -247,6 +269,7 @@ export default function ChaoLuaDashboard() {
       nickname: autoNickname,
       content: commentContent.trim(),
       avatar_seed: randomAvatarSeed,
+      parent_id: replyingTo ? replyingTo.id : null,
     };
 
     const { error } = await supabase.from("anonymous_comments").insert([newComment]);
@@ -255,6 +278,7 @@ export default function ChaoLuaDashboard() {
       alert("Lỗi khi gửi bình luận: " + error.message);
     } else {
       setCommentContent("");
+      setReplyingTo(null);
       fetchComments();
     }
     setIsPostingComment(false);
@@ -276,7 +300,6 @@ export default function ChaoLuaDashboard() {
     setIsExporting(false);
   };
 
-  // Lọc lịch sử đấu theo Thời Gian (Today / Week / All)
   const getFilteredRecordsByTime = () => {
     const now = new Date();
     return records.filter((r) => {
@@ -295,7 +318,6 @@ export default function ChaoLuaDashboard() {
     });
   };
 
-  // Tính toán Stats & Streak
   const getPlayerStatsMap = () => {
     const stats: Record<string, PlayerStats> = {};
 
@@ -351,7 +373,6 @@ export default function ChaoLuaDashboard() {
       }
     });
 
-    // Tính Streak
     Object.keys(stats).forEach((pName) => {
       const history = playerMatchHistories[pName] || [];
       if (history.length === 0) return;
@@ -427,6 +448,10 @@ export default function ChaoLuaDashboard() {
       const matchResult = filterResult === "all" || r.result === filterResult;
       return matchPlayer && matchResult;
     });
+
+  const countTotalComments = (list: Comment[]): number => {
+    return list.reduce((acc, c) => acc + 1 + (c.replies ? countTotalComments(c.replies) : 0), 0);
+  };
 
   return (
     <div className="relative min-h-screen text-slate-800 font-sans pb-16 animated-gradient">
@@ -628,7 +653,7 @@ export default function ChaoLuaDashboard() {
               </form>
             </div>
 
-            {/* BẢNG XẾP HẠNG (CHỤP ẢNH, LỌC THEO NGÀY/TUẦN & STREAK) */}
+            {/* BẢNG XẾP HẠNG */}
             <div className="rounded-2xl border border-white/80 bg-white/90 p-6 shadow-xl shadow-slate-200/60 backdrop-blur flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
@@ -910,7 +935,7 @@ export default function ChaoLuaDashboard() {
               </div>
             </div>
 
-            {/* PHẦN BÌNH LUẬN ẨN DANH (ANONYMOUS) */}
+            {/* PHẦN BÌNH LUẬN ẨN DANH & REPLY COMMENT (CẬP NHẬT UI/UX) */}
             <div className="rounded-2xl border border-white/80 bg-white/90 p-6 shadow-xl shadow-slate-200/60 backdrop-blur">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
                 <div className="flex items-center space-x-2">
@@ -918,20 +943,42 @@ export default function ChaoLuaDashboard() {
                   <h2 className="text-lg font-bold text-slate-900">Góc Chém Gió Ẩn Danh</h2>
                 </div>
                 <span className="text-xs text-slate-400 font-medium">
-                  {comments.length} Bình luận
+                  {countTotalComments(comments)} Bình luận
                 </span>
               </div>
 
               {/* Form Gửi Bình Luận */}
               <form onSubmit={handlePostComment} className="mb-6 space-y-3">
+                {replyingTo && (
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-700 font-semibold animate-fadeIn">
+                    <span className="flex items-center gap-1.5 truncate">
+                      <Reply className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>
+                        Đang trả lời <strong className="font-extrabold">{replyingTo.nickname}</strong>
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setReplyingTo(null)}
+                      className="p-1 text-purple-500 hover:text-purple-800 rounded-lg"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex gap-2">
                   <input
                     type="text"
                     required
-                    placeholder="Nhập nội dung gáy / bình luận ẩn danh..."
+                    placeholder={
+                      replyingTo
+                        ? `Viết phản hồi cho ${replyingTo.nickname}...`
+                        : "Nhập nội dung gáy / bình luận ẩn danh..."
+                    }
                     value={commentContent}
                     onChange={(e) => setCommentContent(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium shadow-inner"
                   />
                   <button
                     type="submit"
@@ -944,35 +991,89 @@ export default function ChaoLuaDashboard() {
                 </div>
               </form>
 
-              {/* Danh sách bình luận */}
-              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+              {/* Danh sách bình luận dạng phân cấp (Comment gốc + Reply) */}
+              <div className="space-y-4 max-h-96 overflow-y-auto pr-1">
                 {comments.length > 0 ? (
                   comments.map((c) => (
-                    <div
-                      key={c.id}
-                      className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl flex items-start space-x-3"
-                    >
-                      <img
-                        src={`https://api.dicebear.com/7.x/bottts/svg?seed=${c.avatar_seed}`}
-                        alt="avatar"
-                        className="w-8 h-8 rounded-full bg-purple-100 border border-purple-200 flex-shrink-0"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-extrabold text-xs text-purple-900">
-                            {c.nickname}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-medium">
-                            {new Date(c.created_at).toLocaleString("vi-VN", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              day: "2-digit",
-                              month: "2-digit",
-                            })}
-                          </span>
+                    <div key={c.id} className="space-y-2">
+                      {/* BÌNH LUẬN GỐC (Card nổi bật) */}
+                      <div className="p-3.5 bg-white border border-slate-200/90 rounded-2xl shadow-sm hover:border-purple-300 transition flex items-start space-x-3">
+                        <img
+                          src={`https://api.dicebear.com/7.x/bottts/svg?seed=${c.avatar_seed}`}
+                          alt="avatar"
+                          className="w-9 h-9 rounded-full bg-purple-100 border border-purple-200 flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-xs text-purple-900 truncate">
+                              {c.nickname}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {new Date(c.created_at).toLocaleString("vi-VN", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                day: "2-digit",
+                                month: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-800 mt-1 font-medium leading-relaxed break-words">
+                            {c.content}
+                          </p>
+
+                          <div className="mt-2 flex items-center gap-2">
+                            <button
+                              onClick={() => setReplyingTo(c)}
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-800 hover:bg-purple-50 px-2 py-0.5 rounded-md transition"
+                            >
+                              <Reply className="w-3 h-3" />
+                              <span>Trả lời</span>
+                            </button>
+                          </div>
                         </div>
-                        <p className="text-xs text-slate-700 mt-1 font-medium">{c.content}</p>
                       </div>
+
+                      {/* DANH SÁCH REPLY COMMENTS (Được thụt lề + Đường nối vạch xám) */}
+                      {c.replies && c.replies.length > 0 && (
+                        <div className="pl-5 ml-4 border-l-2 border-purple-200/70 space-y-2.5">
+                          {c.replies.map((reply) => (
+                            <div
+                              key={reply.id}
+                              className="p-3 bg-purple-50/50 border border-purple-100/80 rounded-xl flex items-start space-x-2.5 relative"
+                            >
+                              <CornerDownRight className="w-3.5 h-3.5 text-purple-400 absolute -left-4 top-4" />
+                              <img
+                                src={`https://api.dicebear.com/7.x/bottts/svg?seed=${reply.avatar_seed}`}
+                                alt="avatar"
+                                className="w-7 h-7 rounded-full bg-purple-100 border border-purple-200 flex-shrink-0"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-extrabold text-[11px] text-purple-950 truncate">
+                                      {reply.nickname}
+                                    </span>
+                                    <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.2 rounded font-bold">
+                                      Phản hồi
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 font-medium">
+                                    {new Date(reply.created_at).toLocaleString("vi-VN", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                      day: "2-digit",
+                                      month: "2-digit",
+                                    })}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-700 mt-1 font-medium leading-relaxed break-words">
+                                  {reply.content}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (
@@ -1159,7 +1260,6 @@ export default function ChaoLuaDashboard() {
           100% { opacity: 1; transform: translate3d(0, 0, 0); }
         }
 
-        /* Hiệu ứng chuyển động dải màu nền mượt mà */
         @keyframes gradientMove {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
