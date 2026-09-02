@@ -14,7 +14,6 @@ import {
   Award,
   Swords,
   CheckCircle2,
-  TrendingUp,
   Crown,
   Sparkles,
   Zap,
@@ -23,7 +22,11 @@ import {
   Download,
   MessageSquare,
   Ghost,
-  Share2,
+  Users,
+  Trash2,
+  UserPlus,
+  Calendar,
+  X,
 } from "lucide-react";
 import {
   BarChart,
@@ -100,9 +103,16 @@ export default function ChaoLuaDashboard() {
   const [filterPlayer, setFilterPlayer] = useState<string>("all");
   const [filterResult, setFilterResult] = useState<"all" | "win" | "lose">("all");
 
+  // State Quản Lý Người Chơi (Thêm / Xóa)
+  const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
+  const [newPlayerInput, setNewPlayerInput] = useState("");
+  const [isAddingPlayer, setIsAddingPlayer] = useState(false);
+
+  // State Khung Thời Gian BXH (All / Today / Week)
+  const [timeFrame, setTimeFrame] = useState<"all" | "today" | "week">("all");
+
   // State cho Bình luận ẩn danh
   const [comments, setComments] = useState<Comment[]>([]);
-  const [commentNickname, setCommentNickname] = useState("");
   const [commentContent, setCommentContent] = useState("");
   const [isPostingComment, setIsPostingComment] = useState(false);
 
@@ -159,6 +169,36 @@ export default function ChaoLuaDashboard() {
     }
   };
 
+  // Thêm người chơi mới
+  const handleAddPlayer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPlayerInput.trim()) return;
+
+    setIsAddingPlayer(true);
+    const { error } = await supabase.from("players").insert([{ name: newPlayerInput.trim() }]);
+
+    if (error) {
+      alert("Lỗi khi thêm người chơi: " + error.message);
+    } else {
+      setNewPlayerInput("");
+      fetchPlayers();
+    }
+    setIsAddingPlayer(false);
+  };
+
+  // Xóa người chơi
+  const handleDeletePlayer = async (id: string, name: string) => {
+    if (!confirm(`Bạn có chắc chắn muốn xóa người chơi "${name}" khỏi hệ thống?`)) return;
+
+    const { error } = await supabase.from("players").delete().eq("id", id);
+    if (error) {
+      alert("Lỗi khi xóa người chơi: " + error.message);
+    } else {
+      if (playerName === name) setPlayerName("");
+      fetchPlayers();
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!playerName) {
@@ -199,10 +239,12 @@ export default function ChaoLuaDashboard() {
     if (!commentContent.trim()) return;
 
     setIsPostingComment(true);
-    const randomAvatarSeed = Math.floor(Math.random() * 1000).toString();
+    const randomId = Math.floor(1000 + Math.random() * 9000);
+    const autoNickname = `Anonymous #${randomId}`;
+    const randomAvatarSeed = Math.floor(Math.random() * 10000).toString();
 
     const newComment = {
-      nickname: commentNickname.trim() || "Thành viên ẩn danh",
+      nickname: autoNickname,
       content: commentContent.trim(),
       avatar_seed: randomAvatarSeed,
     };
@@ -218,7 +260,6 @@ export default function ChaoLuaDashboard() {
     setIsPostingComment(false);
   };
 
-  // Xuất ảnh Bảng Xếp Hạng
   const exportLeaderboardImage = async () => {
     if (!leaderboardRef.current) return;
     setIsExporting(true);
@@ -235,7 +276,26 @@ export default function ChaoLuaDashboard() {
     setIsExporting(false);
   };
 
-  // Tính toán Elo, WinRate và Chuỗi Thắng/Thua (Streak)
+  // Lọc lịch sử đấu theo Thời Gian (Today / Week / All)
+  const getFilteredRecordsByTime = () => {
+    const now = new Date();
+    return records.filter((r) => {
+      const recDate = new Date(r.created_at);
+      if (timeFrame === "today") {
+        return recDate.toDateString() === now.toDateString();
+      }
+      if (timeFrame === "week") {
+        const startOfWeek = new Date(now);
+        const day = now.getDay() || 7;
+        if (day !== 1) startOfWeek.setHours(-24 * (day - 1));
+        startOfWeek.setHours(0, 0, 0, 0);
+        return recDate >= startOfWeek;
+      }
+      return true;
+    });
+  };
+
+  // Tính toán Stats & Streak
   const getPlayerStatsMap = () => {
     const stats: Record<string, PlayerStats> = {};
 
@@ -253,9 +313,10 @@ export default function ChaoLuaDashboard() {
       };
     });
 
+    const timeFilteredLogs = getFilteredRecordsByTime();
     const playerMatchHistories: Record<string, ("win" | "lose")[]> = {};
 
-    records.forEach((r) => {
+    timeFilteredLogs.forEach((r) => {
       if (!stats[r.player_name]) {
         stats[r.player_name] = {
           name: r.player_name,
@@ -290,7 +351,7 @@ export default function ChaoLuaDashboard() {
       }
     });
 
-    // Tính Chuỗi Thắng/Thua (Streak)
+    // Tính Streak
     Object.keys(stats).forEach((pName) => {
       const history = playerMatchHistories[pName] || [];
       if (history.length === 0) return;
@@ -299,17 +360,11 @@ export default function ChaoLuaDashboard() {
       let streakCount = 0;
 
       for (let i = history.length - 1; i >= 0; i--) {
-        if (history[i] === lastResult) {
-          streakCount++;
-        } else {
-          break;
-        }
+        if (history[i] === lastResult) streakCount++;
+        else break;
       }
 
-      stats[pName].streak = {
-        type: lastResult,
-        count: streakCount,
-      };
+      stats[pName].streak = { type: lastResult, count: streakCount };
     });
 
     Object.values(stats).forEach((p) => {
@@ -374,12 +429,12 @@ export default function ChaoLuaDashboard() {
     });
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 text-slate-800 font-sans pb-16">
-      {/* Background Glow */}
+    <div className="relative min-h-screen text-slate-800 font-sans pb-16 animated-gradient">
+      {/* Background Glows */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-20 top-20 h-96 w-96 rounded-full bg-pink-300/30 blur-3xl" />
-        <div className="absolute -right-20 top-60 h-96 w-96 rounded-full bg-purple-300/30 blur-3xl" />
-        <div className="absolute left-1/3 top-0 h-80 w-80 rounded-full bg-amber-200/40 blur-3xl" />
+        <div className="absolute -left-20 top-20 h-96 w-96 rounded-full bg-pink-300/30 blur-3xl animate-pulse" />
+        <div className="absolute -right-20 top-60 h-96 w-96 rounded-full bg-purple-300/30 blur-3xl animate-pulse" />
+        <div className="absolute left-1/3 top-0 h-80 w-80 rounded-full bg-amber-200/40 blur-3xl animate-pulse" />
       </div>
 
       {/* BANNER CHÀO MỪNG */}
@@ -430,9 +485,15 @@ export default function ChaoLuaDashboard() {
               </p>
             </div>
           </div>
-          <div className="hidden items-center space-x-2 rounded-full border border-amber-300 bg-amber-50 px-3.5 py-1.5 text-xs font-bold text-amber-700 sm:flex">
-            <Trophy className="w-4 h-4 text-amber-500" />
-            <span>Mùa Giải 2026</span>
+
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setIsPlayerModalOpen(true)}
+              className="flex items-center space-x-1.5 rounded-full border border-purple-300 bg-purple-50 hover:bg-purple-100 px-3.5 py-1.5 text-xs font-bold text-purple-700 transition shadow-sm"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Quản Lý Người Chơi</span>
+            </button>
           </div>
         </div>
       </header>
@@ -567,101 +628,137 @@ export default function ChaoLuaDashboard() {
               </form>
             </div>
 
-            {/* BẢNG XẾP HẠNG RANK (TÍCH HỢP XUẤT ẢNH & HUY HIỆU STREAK) */}
+            {/* BẢNG XẾP HẠNG (CHỤP ẢNH, LỌC THEO NGÀY/TUẦN & STREAK) */}
             <div className="rounded-2xl border border-white/80 bg-white/90 p-6 shadow-xl shadow-slate-200/60 backdrop-blur flex flex-col justify-between">
-              <div ref={leaderboardRef} className="bg-white p-2 rounded-xl">
+              <div>
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
                   <div className="flex items-center space-x-2">
                     <Award className="w-5 h-5 text-amber-500" />
                     <h2 className="text-lg font-bold text-slate-900">Bảng Xếp Hạng LP</h2>
                   </div>
+
                   <button
                     onClick={exportLeaderboardImage}
                     disabled={isExporting}
                     className="flex items-center space-x-1.5 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg font-bold border border-indigo-200 transition"
+                    title="Chụp ảnh BXH"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>{isExporting ? "Đang tạo..." : "Tải Ảnh BXH"}</span>
                   </button>
                 </div>
 
-                {paginatedLeaderboard.length > 0 ? (
-                  <div className="space-y-3">
-                    {paginatedLeaderboard.map((player, idx) => {
-                      const realRankIndex = (leaderboardPage - 1) * itemsPerPage + idx;
+                {/* BỘ LỌC THỜI GIAN BXH */}
+                <div className="flex items-center justify-between bg-slate-100 p-1 rounded-xl mb-4 text-xs font-bold">
+                  <button
+                    onClick={() => { setTimeFrame("today"); setLeaderboardPage(1); }}
+                    className={`flex-1 py-1.5 rounded-lg transition flex items-center justify-center space-x-1 ${
+                      timeFrame === "today" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Hôm Nay</span>
+                  </button>
+                  <button
+                    onClick={() => { setTimeFrame("week"); setLeaderboardPage(1); }}
+                    className={`flex-1 py-1.5 rounded-lg transition flex items-center justify-center space-x-1 ${
+                      timeFrame === "week" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Tuần Này</span>
+                  </button>
+                  <button
+                    onClick={() => { setTimeFrame("all"); setLeaderboardPage(1); }}
+                    className={`flex-1 py-1.5 rounded-lg transition flex items-center justify-center space-x-1 ${
+                      timeFrame === "all" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <Trophy className="w-3.5 h-3.5" />
+                    <span>Tất Cả</span>
+                  </button>
+                </div>
 
-                      return (
-                        <div
-                          key={player.name}
-                          className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 hover:border-indigo-300 transition"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <span
-                                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
-                                  realRankIndex === 0
-                                    ? "bg-amber-400 text-white shadow-md shadow-amber-400/40"
-                                    : realRankIndex === 1
-                                    ? "bg-slate-300 text-slate-700"
-                                    : realRankIndex === 2
-                                    ? "bg-amber-700 text-white"
-                                    : "bg-slate-200 text-slate-600"
-                                }`}
-                              >
-                                {realRankIndex + 1}
-                              </span>
-                              <div>
-                                <div className="flex items-center space-x-2">
-                                  <span className="font-extrabold text-slate-900 text-sm">
-                                    {player.name}
+                {/* Vùng chụp ảnh */}
+                <div ref={leaderboardRef} className="bg-white p-2 rounded-xl">
+                  {paginatedLeaderboard.length > 0 ? (
+                    <div className="space-y-3">
+                      {paginatedLeaderboard.map((player, idx) => {
+                        const realRankIndex = (leaderboardPage - 1) * itemsPerPage + idx;
+
+                        return (
+                          <div
+                            key={player.name}
+                            className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 hover:border-indigo-300 transition"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-3">
+                                <span
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                                    realRankIndex === 0
+                                      ? "bg-amber-400 text-white shadow-md shadow-amber-400/40"
+                                      : realRankIndex === 1
+                                      ? "bg-slate-300 text-slate-700"
+                                      : realRankIndex === 2
+                                      ? "bg-amber-700 text-white"
+                                      : "bg-slate-200 text-slate-600"
+                                  }`}
+                                >
+                                  {realRankIndex + 1}
+                                </span>
+                                <div>
+                                  <div className="flex items-center space-x-2">
+                                    <span className="font-extrabold text-slate-900 text-sm">
+                                      {player.name}
+                                    </span>
+
+                                    {/* BADGE STREAK */}
+                                    {player.streak.type === "win" && player.streak.count >= 2 && (
+                                      <span className="inline-flex items-center gap-0.5 text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded-full font-black animate-pulse">
+                                        🔥 Thắng {player.streak.count}
+                                      </span>
+                                    )}
+                                    {player.streak.type === "lose" && player.streak.count >= 2 && (
+                                      <span className="inline-flex items-center gap-0.5 text-[10px] bg-blue-100 text-blue-800 border border-blue-300 px-1.5 py-0.5 rounded-full font-black">
+                                        ❄️ Thua {player.streak.count}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className={`inline-block text-[10px] px-2 py-0.5 rounded border mt-0.5 ${player.rankBadgeColor}`}>
+                                    {player.rankTitle}
                                   </span>
-
-                                  {/* HIỂN THỊ STREAK BADGE */}
-                                  {player.streak.type === "win" && player.streak.count >= 2 && (
-                                    <span className="inline-flex items-center gap-0.5 text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded-full font-black animate-pulse">
-                                      🔥 Thắng {player.streak.count}
-                                    </span>
-                                  )}
-                                  {player.streak.type === "lose" && player.streak.count >= 2 && (
-                                    <span className="inline-flex items-center gap-0.5 text-[10px] bg-blue-100 text-blue-800 border border-blue-300 px-1.5 py-0.5 rounded-full font-black">
-                                      ❄️ Thua {player.streak.count}
-                                    </span>
-                                  )}
                                 </div>
-                                <span className={`inline-block text-[10px] px-2 py-0.5 rounded border mt-0.5 ${player.rankBadgeColor}`}>
-                                  {player.rankTitle}
+                              </div>
+
+                              <div className="text-right">
+                                <span className="font-black text-indigo-600 text-base block">
+                                  {player.lp} LP
+                                </span>
+                                <span className="text-[11px] text-slate-500 font-semibold">
+                                  {player.winRate}% Thắng ({player.wins}W - {player.losses}L)
                                 </span>
                               </div>
                             </div>
 
-                            <div className="text-right">
-                              <span className="font-black text-indigo-600 text-base block">
-                                {player.lp} LP
-                              </span>
-                              <span className="text-[11px] text-slate-500 font-semibold">
-                                {player.winRate}% Thắng ({player.wins}W - {player.losses}L)
-                              </span>
+                            <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                              <div
+                                className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500"
+                                style={{ width: `${player.winRate}%` }}
+                              ></div>
                             </div>
                           </div>
-
-                          <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                            <div
-                              className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500"
-                              style={{ width: `${player.winRate}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="py-8 text-center text-slate-400 text-sm font-medium">
-                    Chưa có người chơi nào thi đấu
-                  </div>
-                )}
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center text-slate-400 text-sm font-medium">
+                      Chưa có trận đấu nào trong khung thời gian này
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* THANH PHÂN TRANG */}
+              {/* PHÂN TRANG */}
               {totalLeaderboardPages > 1 && (
                 <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
                   <button
@@ -700,7 +797,7 @@ export default function ChaoLuaDashboard() {
             </div>
           </div>
 
-          {/* CỘT PHẢI: BIỂU ĐỒ, LỊCH SỬ & BÌNH LUẬN ẨN DANH (7 Cột) */}
+          {/* CỘT PHẢI: BIỂU ĐỒ, LỊCH SỬ & BÌNH LUẬN (7 Cột) */}
           <div className="lg:col-span-7 space-y-6">
             
             {/* BIỂU ĐỒ THỐNG KÊ THẮNG / THUA CÁ NHÂN */}
@@ -768,7 +865,7 @@ export default function ChaoLuaDashboard() {
             <div className="rounded-2xl border border-white/80 bg-white/90 p-6 shadow-xl shadow-slate-200/60 backdrop-blur">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
                 <div className="flex items-center space-x-2">
-                  <TrendingUp className="w-5 h-5 text-amber-500" />
+                  <Trophy className="w-5 h-5 text-amber-500" />
                   <h2 className="text-lg font-bold text-slate-900">Biến Động Điểm LP Rank</h2>
                 </div>
                 <span className="text-xs text-slate-400 font-semibold">Theo thời gian</span>
@@ -812,78 +909,79 @@ export default function ChaoLuaDashboard() {
                 )}
               </div>
             </div>
-                {/* PHẦN BÌNH LUẬN ẨN DANH (CHÉM GIÓ / GÁY) */}
-<div className="rounded-2xl border border-white/80 bg-white/90 p-6 shadow-xl shadow-slate-200/60 backdrop-blur">
-  <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
-    <div className="flex items-center space-x-2">
-      <Ghost className="w-5 h-5 text-purple-600" />
-      <h2 className="text-lg font-bold text-slate-900">Góc Chém Gió Ẩn Danh</h2>
-    </div>
-    <span className="text-xs text-slate-400 font-medium">
-      {comments.length} Bình luận
-    </span>
-  </div>
 
-  {/* Form Gửi Bình Luận (Đã bỏ nhập tên) */}
-  <form onSubmit={handlePostComment} className="mb-6 space-y-3">
-    <div className="flex gap-2">
-      <input
-        type="text"
-        required
-        placeholder="Nhập nội dung gáy / bình luận ẩn danh..."
-        value={commentContent}
-        onChange={(e) => setCommentContent(e.target.value)}
-        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium"
-      />
-      <button
-        type="submit"
-        disabled={isPostingComment}
-        className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-5 rounded-xl text-xs shadow-md shadow-purple-500/20 transition flex items-center justify-center space-x-2 whitespace-nowrap disabled:opacity-50"
-      >
-        <MessageSquare className="w-3.5 h-3.5" />
-        <span>{isPostingComment ? "Đang gửi..." : "GỬI"}</span>
-      </button>
-    </div>
-  </form>
+            {/* PHẦN BÌNH LUẬN ẨN DANH (ANONYMOUS) */}
+            <div className="rounded-2xl border border-white/80 bg-white/90 p-6 shadow-xl shadow-slate-200/60 backdrop-blur">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+                <div className="flex items-center space-x-2">
+                  <Ghost className="w-5 h-5 text-purple-600" />
+                  <h2 className="text-lg font-bold text-slate-900">Góc Chém Gió Ẩn Danh</h2>
+                </div>
+                <span className="text-xs text-slate-400 font-medium">
+                  {comments.length} Bình luận
+                </span>
+              </div>
 
-  {/* Danh sách bình luận */}
-  <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-    {comments.length > 0 ? (
-      comments.map((c) => (
-        <div
-          key={c.id}
-          className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl flex items-start space-x-3"
-        >
-          <img
-            src={`https://api.dicebear.com/7.x/bottts/svg?seed=${c.avatar_seed}`}
-            alt="avatar"
-            className="w-8 h-8 rounded-full bg-purple-100 border border-purple-200 flex-shrink-0"
-          />
-          <div className="flex-1">
-            <div className="flex items-center justify-between">
-              <span className="font-extrabold text-xs text-purple-900">
-                {c.nickname}
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium">
-                {new Date(c.created_at).toLocaleString("vi-VN", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  day: "2-digit",
-                  month: "2-digit",
-                })}
-              </span>
+              {/* Form Gửi Bình Luận */}
+              <form onSubmit={handlePostComment} className="mb-6 space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nhập nội dung gáy / bình luận ẩn danh..."
+                    value={commentContent}
+                    onChange={(e) => setCommentContent(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isPostingComment}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-5 rounded-xl text-xs shadow-md shadow-purple-500/20 transition flex items-center justify-center space-x-2 whitespace-nowrap disabled:opacity-50"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>{isPostingComment ? "Đang gửi..." : "GỬI"}</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* Danh sách bình luận */}
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                {comments.length > 0 ? (
+                  comments.map((c) => (
+                    <div
+                      key={c.id}
+                      className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl flex items-start space-x-3"
+                    >
+                      <img
+                        src={`https://api.dicebear.com/7.x/bottts/svg?seed=${c.avatar_seed}`}
+                        alt="avatar"
+                        className="w-8 h-8 rounded-full bg-purple-100 border border-purple-200 flex-shrink-0"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-xs text-purple-900">
+                            {c.nickname}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {new Date(c.created_at).toLocaleString("vi-VN", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              day: "2-digit",
+                              month: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-700 mt-1 font-medium">{c.content}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-6 text-center text-slate-400 text-xs">
+                    Chưa có bình luận nào. Hãy là người đầu tiên mở bát!
+                  </div>
+                )}
+              </div>
             </div>
-            <p className="text-xs text-slate-700 mt-1 font-medium">{c.content}</p>
-          </div>
-        </div>
-      ))
-    ) : (
-      <div className="py-6 text-center text-slate-400 text-xs">
-        Chưa có bình luận nào. Hãy là người đầu tiên mở bát!
-      </div>
-    )}
-  </div>
-</div>
 
             {/* LỊCH SỬ ĐẤU */}
             <div className="rounded-2xl border border-white/80 bg-white/90 p-6 shadow-xl shadow-slate-200/60 backdrop-blur">
@@ -975,6 +1073,80 @@ export default function ChaoLuaDashboard() {
         </div>
       </main>
 
+      {/* MODAL QUẢN LÝ NGƯỜI CHƠI (THÊM / XÓA) */}
+      {isPlayerModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2 text-indigo-600">
+                <Users className="w-5 h-5" />
+                <h3 className="font-bold text-slate-900 text-base">Quản Lý Danh Sách Thành Viên</h3>
+              </div>
+              <button
+                onClick={() => setIsPlayerModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form thêm người chơi mới */}
+            <form onSubmit={handleAddPlayer} className="flex gap-2">
+              <input
+                type="text"
+                required
+                placeholder="Tên thành viên mới..."
+                value={newPlayerInput}
+                onChange={(e) => setNewPlayerInput(e.target.value)}
+                className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <button
+                type="submit"
+                disabled={isAddingPlayer}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center space-x-1 transition disabled:opacity-50"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>{isAddingPlayer ? "Đang thêm..." : "Thêm"}</span>
+              </button>
+            </form>
+
+            {/* Danh sách người chơi hiện có */}
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              <p className="text-xs font-bold uppercase text-slate-400 tracking-wider">
+                Thành viên hiện tại ({playersList.length})
+              </p>
+              {playersList.length > 0 ? (
+                playersList.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl hover:border-slate-300 transition"
+                  >
+                    <span className="text-xs font-bold text-slate-800">{p.name}</span>
+                    <button
+                      onClick={() => handleDeletePlayer(p.id, p.name)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                      title="Xóa người chơi"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-xs text-slate-400 py-4">Chưa có người chơi nào.</p>
+              )}
+            </div>
+
+            <button
+              onClick={() => setIsPlayerModalOpen(false)}
+              className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* CẤU HÌNH HIỆU ỨNG CHUYỂN ĐỘNG NỀN & ANIMATIONS */}
       <style jsx global>{`
         @keyframes welcomeFade {
           0% { opacity: 0; transform: translate(-50%, -15px) scale(0.95); }
@@ -987,12 +1159,34 @@ export default function ChaoLuaDashboard() {
           100% { opacity: 1; transform: translate3d(0, 0, 0); }
         }
 
+        /* Hiệu ứng chuyển động dải màu nền mượt mà */
+        @keyframes gradientMove {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+
+        .animated-gradient {
+          background: linear-gradient(-45deg, #e0e7ff, #f3e8ff, #fce7f3, #e0f2fe);
+          background-size: 400% 400%;
+          animation: gradientMove 12s ease infinite;
+        }
+
         .animate-welcomeFade {
           animation: welcomeFade 3.5s ease-out forwards;
         }
 
         .animate-toastIn {
           animation: toastIn 0.3s ease-out forwards;
+        }
+
+        .animate-fadeIn {
+          animation: fadeIn 0.2s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
       `}</style>
     </div>
