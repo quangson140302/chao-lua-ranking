@@ -464,10 +464,10 @@ export default function ChaoLuaDashboard() {
 
       {/* BANNER CHÀO MỪNG */}
       {showWelcomeEffect && (
-        <div className="pointer-events-none fixed top-5 left-1/2 -translate-x-1/2 z-[80] w-auto max-w-md animate-welcomeFade">
-          <div className="rounded-2xl border border-amber-300 bg-white/95 px-6 py-3 text-center shadow-xl shadow-amber-500/10 backdrop-blur-xl flex items-center gap-3">
+        <div className="pointer-events-none fixed inset-0 z-[80] flex items-center justify-center p-4 animate-welcomeFade">
+          <div className="rounded-2xl border border-amber-300 bg-white/95 px-6 py-3 text-center shadow-xl shadow-amber-500/10 backdrop-blur-xl flex items-center justify-center gap-3">
             <div className="text-2xl animate-bounce">🔥</div>
-            <div className="text-left">
+            <div className="text-center">
               <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-600">
                 Đấu Trường Chảo Lửa
               </p>
@@ -493,6 +493,26 @@ export default function ChaoLuaDashboard() {
           </div>
         </div>
       )}
+
+      {/* FLOATING YOUTUBE / CLIP POPUP */}
+      <a
+        href="https://www.youtube.com/@jeff-z2y4w/videos"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Xem clip và theo dõi trận đấu trên YouTube"
+        className="youtube-float"
+      >
+        <span className="youtube-float-glow" />
+        <span className="youtube-float-icon">
+          <span className="youtube-play">▶</span>
+        </span>
+        <span className="youtube-float-content">
+          <span className="youtube-float-label">🎥 GÓC CHẢO LỬA</span>
+          <span className="youtube-float-title">Xem lại clip custom!</span>
+          <span className="youtube-float-subtitle">Highlight trận đấu &amp; combat cháy 🔥</span>
+        </span>
+        <span className="youtube-float-arrow">→</span>
+      </a>
 
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-white/80 bg-white/80 shadow-sm backdrop-blur-xl">
@@ -1250,9 +1270,58 @@ export default function ChaoLuaDashboard() {
       {/* CẤU HÌNH HIỆU ỨNG CHUYỂN ĐỘNG NỀN & ANIMATIONS */}
       <style jsx global>{`
         @keyframes welcomeFade {
-          0% { opacity: 0; transform: translate(-50%, -15px) scale(0.95); }
-          15%, 80% { opacity: 1; transform: translate(-50%, 0) scale(1); }
-          100% { opacity: 0; transform: translate(-50%, -10px) scale(0.98); }
+          0% { opacity: 0; transform: scale(0.92); }
+          15%, 80% { opacity: 1; transform: scale(1); }
+          100% { opacity: 0; transform: scale(0.96); }
+        }
+
+        .youtube-float {
+          position: fixed;
+          right: 20px;
+          bottom: 20px;
+          z-index: 60;
+          width: 310px;
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          padding: 11px 12px;
+          border: 1px solid rgba(255, 255, 255, 0.95);
+          border-radius: 18px;
+          background: rgba(255, 255, 255, 0.94);
+          box-shadow: 0 18px 45px rgba(124, 58, 237, 0.14), 0 8px 20px rgba(15, 23, 42, 0.08);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          text-decoration: none;
+          overflow: hidden;
+          animation: youtubeFloatCycle 18s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+        }
+
+        .youtube-float:hover {
+          animation-play-state: paused;
+          transform: translateY(-4px);
+          box-shadow: 0 22px 50px rgba(124, 58, 237, 0.2), 0 10px 25px rgba(15, 23, 42, 0.1);
+        }
+
+        .youtube-float-glow { position: absolute; width: 80px; height: 80px; right: -30px; top: -35px; border-radius: 999px; background: rgba(244, 63, 94, 0.2); filter: blur(22px); pointer-events: none; }
+        .youtube-float-icon { position: relative; flex: 0 0 auto; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; border-radius: 14px; background: linear-gradient(135deg, #ef4444, #ec4899); box-shadow: 0 8px 18px rgba(236, 72, 153, 0.24); }
+        .youtube-play { color: white; font-size: 15px; line-height: 1; transform: translateX(1px); }
+        .youtube-float-content { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 1px; }
+        .youtube-float-label { color: #e11d48; font-size: 9px; line-height: 1.2; font-weight: 900; letter-spacing: 0.12em; }
+        .youtube-float-title { color: #0f172a; font-size: 13px; line-height: 1.35; font-weight: 900; }
+        .youtube-float-subtitle { color: #64748b; font-size: 9px; line-height: 1.35; font-weight: 600; }
+        .youtube-float-arrow { flex: 0 0 auto; color: #ec4899; font-size: 17px; font-weight: 900; transition: transform 0.2s ease; }
+        .youtube-float:hover .youtube-float-arrow { transform: translateX(3px); }
+
+        @keyframes youtubeFloatCycle {
+          0% { opacity: 0; visibility: hidden; transform: translate3d(20px, 20px, 0) scale(0.94); }
+          4% { opacity: 1; visibility: visible; transform: translate3d(0, 0, 0) scale(1); }
+          30% { opacity: 1; visibility: visible; transform: translate3d(0, 0, 0) scale(1); }
+          36% { opacity: 0; visibility: hidden; transform: translate3d(20px, 12px, 0) scale(0.97); }
+          100% { opacity: 0; visibility: hidden; transform: translate3d(20px, 12px, 0) scale(0.97); }
+        }
+
+        @media (max-width: 640px) {
+          .youtube-float { right: 12px; bottom: 12px; width: calc(100% - 24px); max-width: 310px; }
         }
 
         @keyframes toastIn {
